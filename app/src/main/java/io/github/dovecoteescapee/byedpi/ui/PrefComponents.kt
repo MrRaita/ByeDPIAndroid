@@ -3,6 +3,9 @@ package io.github.dovecoteescapee.byedpi.ui
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,19 +31,21 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.dovecoteescapee.byedpi.R
 
@@ -52,16 +57,23 @@ import io.github.dovecoteescapee.byedpi.R
 private val OuterRadius = 28.dp
 private val InnerRadius = 6.dp
 
-private fun groupItemShape(index: Int, count: Int): Shape {
-    val top = if (index == 0) OuterRadius else InnerRadius
-    val bottom = if (index == count - 1) OuterRadius else InnerRadius
-    return RoundedCornerShape(topStart = top, topEnd = top, bottomEnd = bottom, bottomStart = bottom)
-}
+/** Corner radii of one row inside a segmented group. */
+@Immutable
+class ItemShape(val top: Dp, val bottom: Dp)
+
+private fun groupItemShape(index: Int, count: Int): ItemShape =
+    ItemShape(
+        top = if (index == 0) OuterRadius else InnerRadius,
+        bottom = if (index == count - 1) OuterRadius else InnerRadius,
+    )
+
+/** False while the service is running: the settings are visible but cannot be changed. */
+val LocalPrefsEnabled = compositionLocalOf { true }
 
 class PrefGroupScope {
-    internal val items = mutableListOf<@Composable (Shape) -> Unit>()
+    internal val items = mutableListOf<@Composable (ItemShape) -> Unit>()
 
-    fun item(content: @Composable (Shape) -> Unit) {
+    fun item(content: @Composable (ItemShape) -> Unit) {
         items.add(content)
     }
 }
@@ -104,16 +116,30 @@ fun PrefGroup(
 
 @Composable
 private fun PrefRow(
-    shape: Shape,
+    shape: ItemShape,
     title: String,
     summary: String?,
     enabled: Boolean,
     onClick: (() -> Unit)?,
     trailing: (@Composable () -> Unit)? = null,
 ) {
+    val enabled = enabled && LocalPrefsEnabled.current
     val colors = MaterialTheme.colorScheme
     val titleColor = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = 0.38f)
     val summaryColor = if (enabled) colors.onSurfaceVariant else colors.onSurface.copy(alpha = 0.38f)
+
+    // Expressive press feedback: the row rounds off its corners while pressed, springing back on release.
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val spring = expressiveFastSpatial<Dp>()
+    val top by animateDpAsState(if (pressed) OuterRadius else shape.top, spring, label = "row-top")
+    val bottom by animateDpAsState(if (pressed) OuterRadius else shape.bottom, spring, label = "row-bottom")
+    val rowShape = RoundedCornerShape(
+        topStart = top.coerceAtLeast(0.dp),
+        topEnd = top.coerceAtLeast(0.dp),
+        bottomEnd = bottom.coerceAtLeast(0.dp),
+        bottomStart = bottom.coerceAtLeast(0.dp),
+    )
 
     val content: @Composable () -> Unit = {
         Row(
@@ -146,12 +172,13 @@ private fun PrefRow(
         Surface(
             onClick = onClick,
             enabled = enabled,
-            shape = shape,
+            shape = rowShape,
             color = colors.surfaceContainer,
+            interactionSource = interaction,
             content = content,
         )
     } else {
-        Surface(shape = shape, color = colors.surfaceContainer, content = content)
+        Surface(shape = rowShape, color = colors.surfaceContainer, content = content)
     }
 }
 
@@ -161,7 +188,7 @@ private fun PrefRow(
 
 @Composable
 fun SwitchPref(
-    shape: Shape,
+    shape: ItemShape,
     title: String,
     checked: Boolean,
     onChange: (Boolean) -> Unit,
@@ -174,13 +201,19 @@ fun SwitchPref(
         summary = summary,
         enabled = enabled,
         onClick = { onChange(!checked) },
-        trailing = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
+        trailing = {
+            Switch(
+                checked = checked,
+                onCheckedChange = null,
+                enabled = enabled && LocalPrefsEnabled.current,
+            )
+        },
     )
 }
 
 @Composable
 fun ChoicePref(
-    shape: Shape,
+    shape: ItemShape,
     title: String,
     value: String,
     entries: List<Pair<String, String>>,
@@ -239,7 +272,7 @@ fun ChoicePref(
 
 @Composable
 fun TextPref(
-    shape: Shape,
+    shape: ItemShape,
     title: String,
     value: String,
     onSave: (String) -> Unit,
@@ -304,7 +337,7 @@ fun TextPref(
 /** A plain tappable row (navigates somewhere or performs an action). */
 @Composable
 fun ActionPref(
-    shape: Shape,
+    shape: ItemShape,
     title: String,
     onClick: () -> Unit,
     summary: String? = null,
@@ -333,7 +366,7 @@ fun ActionPref(
 
 /** Read-only row, e.g. the version. */
 @Composable
-fun InfoPref(shape: Shape, title: String, summary: String) {
+fun InfoPref(shape: ItemShape, title: String, summary: String) {
     PrefRow(shape = shape, title = title, summary = summary, enabled = true, onClick = null)
 }
 

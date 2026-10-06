@@ -1,6 +1,10 @@
 package io.github.dovecoteescapee.byedpi.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,11 +16,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import android.os.Build
 import io.github.dovecoteescapee.byedpi.BuildConfig
 import io.github.dovecoteescapee.byedpi.R
 import io.github.dovecoteescapee.byedpi.data.Mode
@@ -38,37 +46,69 @@ import io.github.dovecoteescapee.byedpi.utility.intInRange
 private const val SOURCE_CODE_URL = "https://github.com/dovecoteescapee/ByeDPIAndroid"
 
 @Composable
+private fun LockedBanner() {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_locked_banner),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+/**
+ * @param onBack null for the top-level tabs (no back arrow)
+ * @param locked true while the service runs: rows are shown but cannot be changed
+ * @param navInset add the navigation-bar inset (needed on screens without the bottom bar)
+ */
+@Composable
 private fun SettingsScaffold(
     title: String,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
+    locked: Boolean,
+    navInset: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val behavior = rememberExpressiveTopBarBehavior()
-    Scaffold(
-        modifier = Modifier.nestedScroll(behavior.nestedScrollConnection),
-        topBar = {
-            ExpressiveLargeTopBar(
-                title = title,
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                        )
-                    }
-                },
-                scrollBehavior = behavior,
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
-        ) {
-            content()
-            Spacer(Modifier.height(32.dp))
+    CompositionLocalProvider(LocalPrefsEnabled provides !locked) {
+        Scaffold(
+            modifier = Modifier.nestedScroll(behavior.nestedScrollConnection),
+            contentWindowInsets = WindowInsets(0.dp),
+            topBar = {
+                ExpressiveLargeTopBar(
+                    title = title,
+                    navigationIcon = {
+                        if (onBack != null) {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = stringResource(R.string.back),
+                                )
+                            }
+                        }
+                    },
+                    scrollBehavior = behavior,
+                )
+            },
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .then(if (navInset) Modifier.navigationBarsPadding() else Modifier)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                if (locked) LockedBanner()
+                content()
+                Spacer(Modifier.height(32.dp))
+            }
         }
     }
 }
@@ -80,42 +120,108 @@ private fun rememberPrefs(): PrefState {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Main settings
+// "Configuration" tab
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun SettingsScreen(
-    onBack: () -> Unit,
+fun ConfigurationScreen(
+    running: Boolean,
     onOpenUiSettings: () -> Unit,
     onOpenCmdSettings: () -> Unit,
 ) {
+    val prefs = rememberPrefs()
+    val cmdEnabled = prefs.bool("byedpi_enable_cmd_settings", false)
+
+    SettingsScaffold(
+        title = stringResource(R.string.tab_configuration),
+        onBack = null,
+        locked = running,
+    ) {
+        PrefGroup(title = stringResource(R.string.byedpi_category)) {
+            item { shape ->
+                SwitchPref(
+                    shape = shape,
+                    title = stringResource(R.string.use_command_line_settings),
+                    checked = cmdEnabled,
+                    onChange = { prefs.putBool("byedpi_enable_cmd_settings", it) },
+                )
+            }
+            item { shape ->
+                ActionPref(
+                    shape = shape,
+                    title = stringResource(R.string.ui_editor),
+                    enabled = !cmdEnabled,
+                    onClick = onOpenUiSettings,
+                )
+            }
+            item { shape ->
+                ActionPref(
+                    shape = shape,
+                    title = stringResource(R.string.command_line_editor),
+                    enabled = cmdEnabled,
+                    onClick = onOpenCmdSettings,
+                )
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// "Settings" tab: General, About, Reset
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+fun SettingsScreen(running: Boolean) {
     val prefs = rememberPrefs()
     val openUrl = openUrl()
     var confirmReset by remember { mutableStateOf(false) }
 
     val mode = Mode.fromString(prefs.string("byedpi_mode", "vpn"))
-    val cmdEnabled = prefs.bool("byedpi_enable_cmd_settings", false)
 
     val themeEntries = listOf(
         "system" to stringResource(R.string.theme_system),
         "light" to stringResource(R.string.theme_light),
         "dark" to stringResource(R.string.theme_dark),
     )
+    val colorEntries = listOf(
+        "dynamic" to stringResource(R.string.color_dynamic),
+        "brand" to stringResource(R.string.color_brand),
+    )
     val modeEntries = listOf(
         "vpn" to stringResource(R.string.mode_vpn),
         "proxy" to stringResource(R.string.mode_proxy),
     )
 
-    SettingsScaffold(title = stringResource(R.string.title_settings), onBack = onBack) {
+    SettingsScaffold(
+        title = stringResource(R.string.title_settings),
+        onBack = null,
+        locked = running,
+    ) {
         PrefGroup(title = stringResource(R.string.general_category)) {
+            // Appearance is harmless while connected, so these two stay editable.
             item { shape ->
-                ChoicePref(
-                    shape = shape,
-                    title = stringResource(R.string.theme_settings),
-                    value = prefs.string("app_theme", "system"),
-                    entries = themeEntries,
-                    onSelect = { prefs.putString("app_theme", it) },
-                )
+                CompositionLocalProvider(LocalPrefsEnabled provides true) {
+                    ChoicePref(
+                        shape = shape,
+                        title = stringResource(R.string.theme_settings),
+                        value = prefs.string("app_theme", "system"),
+                        entries = themeEntries,
+                        onSelect = { prefs.putString("app_theme", it) },
+                    )
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                item { shape ->
+                    CompositionLocalProvider(LocalPrefsEnabled provides true) {
+                        ChoicePref(
+                            shape = shape,
+                            title = stringResource(R.string.color_source),
+                            value = prefs.string("app_color", "dynamic"),
+                            entries = colorEntries,
+                            onSelect = { prefs.putString("app_color", it) },
+                        )
+                    }
+                }
             }
             item { shape ->
                 ChoicePref(
@@ -144,33 +250,6 @@ fun SettingsScreen(
                         onChange = { prefs.putBool("ipv6_enable", it) },
                     )
                 }
-            }
-        }
-
-        PrefGroup(title = stringResource(R.string.byedpi_category)) {
-            item { shape ->
-                SwitchPref(
-                    shape = shape,
-                    title = stringResource(R.string.use_command_line_settings),
-                    checked = cmdEnabled,
-                    onChange = { prefs.putBool("byedpi_enable_cmd_settings", it) },
-                )
-            }
-            item { shape ->
-                ActionPref(
-                    shape = shape,
-                    title = stringResource(R.string.ui_editor),
-                    enabled = !cmdEnabled,
-                    onClick = onOpenUiSettings,
-                )
-            }
-            item { shape ->
-                ActionPref(
-                    shape = shape,
-                    title = stringResource(R.string.command_line_editor),
-                    enabled = cmdEnabled,
-                    onClick = onOpenCmdSettings,
-                )
             }
         }
 
@@ -230,7 +309,7 @@ fun SettingsScreen(
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun UiSettingsScreen(onBack: () -> Unit) {
+fun UiSettingsScreen(running: Boolean, onBack: () -> Unit) {
     val prefs = rememberPrefs()
     val openUrl = openUrl()
     val docsUrl = stringResource(R.string.byedpi_docs)
@@ -266,7 +345,12 @@ fun UiSettingsScreen(onBack: () -> Unit) {
         "disoob" to stringResource(R.string.desync_method_disoob),
     )
 
-    SettingsScaffold(title = stringResource(R.string.ui_editor), onBack = onBack) {
+    SettingsScaffold(
+        title = stringResource(R.string.ui_editor),
+        onBack = onBack,
+        locked = running,
+        navInset = true,
+    ) {
         PrefGroup {
             item { shape ->
                 ActionPref(
@@ -569,12 +653,17 @@ fun UiSettingsScreen(onBack: () -> Unit) {
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun CmdSettingsScreen(onBack: () -> Unit) {
+fun CmdSettingsScreen(running: Boolean, onBack: () -> Unit) {
     val prefs = rememberPrefs()
     val openUrl = openUrl()
     val docsUrl = stringResource(R.string.byedpi_docs)
 
-    SettingsScaffold(title = stringResource(R.string.command_line_editor), onBack = onBack) {
+    SettingsScaffold(
+        title = stringResource(R.string.command_line_editor),
+        onBack = onBack,
+        locked = running,
+        navInset = true,
+    ) {
         PrefGroup {
             item { shape ->
                 ActionPref(

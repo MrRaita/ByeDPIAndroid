@@ -95,12 +95,17 @@ fun isDarkFor(themePref: String): Boolean = when (themePref) {
     else -> isSystemInDarkTheme()
 }
 
+/**
+ * @param dynamicColor use wallpaper-based colors (Android 12+). When false, or on older Android,
+ * the static ByeDPI-blue palette is used.
+ */
 @Composable
-fun ByeDpiTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
+fun ByeDpiTheme(darkTheme: Boolean, dynamicColor: Boolean, content: @Composable () -> Unit) {
     val context = LocalContext.current
+    val canUseDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && darkTheme -> dynamicDarkColorScheme(context)
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> dynamicLightColorScheme(context)
+        canUseDynamic && darkTheme -> dynamicDarkColorScheme(context)
+        canUseDynamic -> dynamicLightColorScheme(context)
         darkTheme -> DarkColors
         else -> LightColors
     }

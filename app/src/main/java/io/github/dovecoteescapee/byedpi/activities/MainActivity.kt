@@ -167,7 +167,9 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
 
-            ByeDpiTheme(darkTheme = dark) {
+            val dynamicColor = prefs.string("app_color", "dynamic") == "dynamic"
+
+            ByeDpiTheme(darkTheme = dark, dynamicColor = dynamicColor) {
                 ByeDpiApp(
                     status = currentStatus.first,
                     runningMode = currentStatus.second,

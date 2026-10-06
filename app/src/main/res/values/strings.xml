@@ -91,4 +91,10 @@
     <string name="hosts_mode_whitelist">Whitelist</string>
     <string name="reset_settings_confirm">Reset all settings to their defaults?</string>
     <string name="documentation">Documentation</string>
+    <string name="tab_connection">Connection</string>
+    <string name="tab_configuration">Configuration</string>
+    <string name="color_source">Colors</string>
+    <string name="color_dynamic">System colors (Material You)</string>
+    <string name="color_brand">ByeDPI blue</string>
+    <string name="settings_locked_banner">Disconnect to change these settings.</string>
 </resources>

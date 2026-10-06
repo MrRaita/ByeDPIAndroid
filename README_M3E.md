@@ -65,3 +65,12 @@ Runs on every push to `main`/`master`, on pull requests, on tags `v*`, and manua
   (default branch) itself; change `BYEDPI_REF` / `HEV_REF` at the top of the workflow to pin other versions.
 - Installs SDK platform 37.1, NDK 28.2.13676358, CMake 3.22.1 on the runner. If the 37.1 package id is not
   available yet the log shows the platforms the runner can see (step "Install SDK packages").
+
+## UI structure (v2)
+- Bottom navigation: **Connection** (hero + status), **Configuration** (ByeDPI group: command-line switch, UI editor,
+  command-line editor), **Settings** (General, About, Reset).
+- While the service runs, Configuration/Settings stay visible but locked (banner); Theme and Colors stay editable.
+- Settings > General > **Colors**: "System colors (Material You)" (default, Android 12+) or "ByeDPI blue".
+  With a gray/monochrome wallpaper the system palette is gray by design; pick "ByeDPI blue" for a colorful look.
+- `ui/ConnectionHero.kt`: circular button, wavy loading ring, power-on wave, wobbling ambient ripples,
+  reversed "power-off" collapse. All alpha-only calls stay in `ui/Expressive.kt`.

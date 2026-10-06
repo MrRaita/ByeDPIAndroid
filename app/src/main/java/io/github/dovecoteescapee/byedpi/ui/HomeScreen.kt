@@ -1,21 +1,16 @@
 package io.github.dovecoteescapee.byedpi.ui
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -28,19 +23,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.dovecoteescapee.byedpi.R
 import io.github.dovecoteescapee.byedpi.data.AppStatus
 import io.github.dovecoteescapee.byedpi.data.Mode
 import io.github.dovecoteescapee.byedpi.utility.getPreferences
 
+/** "Connection" tab. */
 @Composable
-fun HomeScreen(
+fun ConnectionScreen(
     status: AppStatus,
     runningMode: Mode,
     pending: Boolean,
     onToggle: () -> Unit,
-    onOpenSettings: () -> Unit,
     onSaveLogs: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -68,40 +64,43 @@ fun HomeScreen(
     }
 
     val colors = MaterialTheme.colorScheme
-    val cardColor by animateColorAsState(if (running) colors.primaryContainer else colors.surfaceContainerHigh)
-    val cardContent by animateColorAsState(if (running) colors.onPrimaryContainer else colors.onSurface)
+    val cardColor by animateColorAsState(
+        targetValue = if (running) colors.primaryContainer else colors.surfaceContainerHigh,
+        animationSpec = expressiveEffects(),
+        label = "card-color",
+    )
+    val cardContent by animateColorAsState(
+        targetValue = if (running) colors.onPrimaryContainer else colors.onSurface,
+        animationSpec = expressiveEffects(),
+        label = "card-content",
+    )
+    // The card morphs its corners when the state flips.
+    val corner: Dp by animateDpAsState(
+        targetValue = if (running) 56.dp else 32.dp,
+        animationSpec = expressiveSpatial(),
+        label = "card-corner",
+    )
 
     Scaffold(
-        topBar = {
-            ExpressiveLargeTopBar(
-                title = stringResource(R.string.app_name),
-                actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.settings),
-                        )
-                    }
-                },
-            )
-        },
+        contentWindowInsets = WindowInsets(0.dp),
+        topBar = { ExpressiveLargeTopBar(title = stringResource(R.string.app_name)) },
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+                .padding(padding),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
         ) {
             Surface(
-                shape = RoundedCornerShape(40.dp),
+                shape = RoundedCornerShape(corner.coerceAtLeast(0.dp)),
                 color = cardColor,
                 contentColor = cardContent,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 36.dp),
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
@@ -110,13 +109,13 @@ fun HomeScreen(
                         ),
                         style = MaterialTheme.typography.labelLarge,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = stringResource(statusText),
                         style = MaterialTheme.typography.headlineMedium,
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = stringResource(
                             R.string.proxy_address,
@@ -128,26 +127,20 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
+            ConnectionHero(
+                running = running,
+                pending = pending,
+                label = stringResource(buttonText),
+                onClick = onToggle,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            )
 
-            Box(
-                modifier = Modifier.height(88.dp),
-                contentAlignment = Alignment.Center,
+            FilledTonalButton(
+                onClick = onSaveLogs,
+                modifier = Modifier.padding(bottom = 16.dp),
             ) {
-                if (pending) {
-                    ExpressiveLoading(Modifier.size(64.dp))
-                } else {
-                    ExpressiveStatusButton(
-                        text = stringResource(buttonText),
-                        running = running,
-                        onClick = onToggle,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            FilledTonalButton(onClick = onSaveLogs) {
                 Text(stringResource(R.string.save_logs))
             }
         }

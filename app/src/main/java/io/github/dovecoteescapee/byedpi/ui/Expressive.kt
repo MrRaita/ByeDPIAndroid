@@ -2,17 +2,19 @@
 
 package io.github.dovecoteescapee.byedpi.ui
 
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularWavyProgressIndicator
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
@@ -21,15 +23,18 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /*
  * ==========================================================================================
  *  THE ONLY FILE THAT TOUCHES Material 3 Expressive (alpha) APIs.
  *
- *  Everything else in the app uses plain, long-stable Material 3 APIs. If a future alpha
- *  renames something, or you want to fall back to stable Material3 1.4.0, only this file
- *  changes. Fallback for each wrapper is noted in its comment.
+ *  Everything else in the app uses plain, long-stable Material 3 / Compose APIs. If a future
+ *  alpha renames something, or you want to fall back to stable Material3 1.4.0, only this file
+ *  changes. The stable fallback for each wrapper is noted in its comment.
  * ==========================================================================================
  */
 
@@ -46,50 +51,65 @@ fun ExpressiveTheme(colorScheme: ColorScheme, content: @Composable () -> Unit) {
     )
 }
 
+// ---- Motion specs from the theme's motion scheme (springs when the expressive scheme is active) ----
+
+/** Spring for movement / size / shape changes. Fallback: `spring()`. */
+@Composable
+fun <T> expressiveSpatial(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.defaultSpatialSpec()
+
+/** Faster spring, used for press feedback. Fallback: `spring(stiffness = Spring.StiffnessMediumLow)`. */
+@Composable
+fun <T> expressiveFastSpatial(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.fastSpatialSpec()
+
+/** Non-bouncy spec for colors / alpha. Fallback: `tween(300)`. */
+@Composable
+fun <T> expressiveEffects(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme.defaultEffectsSpec()
+
 /**
- * Big connect / disconnect button whose shape morphs while pressed.
- * Fallback: drop the `shapes = ...` argument (plain pill buttons).
+ * Circular connect/disconnect button. The shape morphs from a circle to a rounded square while pressed.
+ * Fallback: drop the `shapes = ...` argument and add `shape = CircleShape`.
  */
 @Composable
-fun ExpressiveStatusButton(
+fun ExpressiveCircleButton(
     text: String,
-    running: Boolean,
+    containerColor: Color,
+    contentColor: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    size: Dp = 168.dp,
 ) {
-    val padding = PaddingValues(horizontal = 40.dp, vertical = 20.dp)
-    val buttonModifier = modifier.heightIn(min = 72.dp)
-    if (running) {
-        FilledTonalButton(
-            onClick = onClick,
-            enabled = enabled,
-            shapes = ButtonDefaults.shapes(),
-            contentPadding = padding,
-            modifier = buttonModifier,
-        ) {
-            Text(text = text, style = MaterialTheme.typography.titleLarge)
-        }
-    } else {
-        Button(
-            onClick = onClick,
-            enabled = enabled,
-            shapes = ButtonDefaults.shapes(),
-            contentPadding = padding,
-            modifier = buttonModifier,
-        ) {
-            Text(text = text, style = MaterialTheme.typography.titleLarge)
-        }
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shapes = ButtonDefaults.shapes(
+            shape = CircleShape,
+            pressedShape = RoundedCornerShape(size * 0.3f),
+        ),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = containerColor,
+            contentColor = contentColor,
+            disabledContainerColor = containerColor,
+            disabledContentColor = contentColor,
+        ),
+        contentPadding = PaddingValues(0.dp),
+        modifier = modifier.size(size),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
 /**
- * Morphing-polygon loading indicator.
- * Fallback: `CircularProgressIndicator(modifier = modifier)`.
+ * Wavy circular loading ring (indeterminate) that runs around its bounds.
+ * Fallback: `CircularProgressIndicator(modifier = modifier, color = color)`.
  */
 @Composable
-fun ExpressiveLoading(modifier: Modifier = Modifier) {
-    LoadingIndicator(modifier = modifier)
+fun ExpressiveWavyRing(color: Color, modifier: Modifier = Modifier) {
+    CircularWavyProgressIndicator(modifier = modifier, color = color)
 }
 
 /**
