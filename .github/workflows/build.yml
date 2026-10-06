@@ -65,6 +65,11 @@ jobs:
 
       - name: Set up Android SDK tooling
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default ("tools platform-tools") fails: the legacy "tools" package no longer exists.
+          # We install what we need ourselves in the next step.
+          packages: ''
+          log-accepted-android-sdk-licenses: false
 
       - name: Install SDK packages
         run: |
