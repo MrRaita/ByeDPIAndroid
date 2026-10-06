@@ -72,4 +72,23 @@
     <string name="desync_https_category">HTTPS</string>
     <string name="byedpi_protocols_category">Protocols</string>
     <string name="byedpi_protocols_hint">Uncheck all to desync all traffic</string>
+    <string name="not_set">Not set</string>
+    <string name="invalid_value">Invalid value</string>
+    <string name="back">Back</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="mode_vpn">VPN</string>
+    <string name="mode_proxy">Proxy</string>
+    <string name="desync_method_none">None</string>
+    <string name="desync_method_split">Split</string>
+    <string name="desync_method_disorder">Disorder</string>
+    <string name="desync_method_fake">Fake</string>
+    <string name="desync_method_oob">Out-of-band</string>
+    <string name="desync_method_disoob">Disordered out-of-band</string>
+    <string name="hosts_mode_disable">Disable</string>
+    <string name="hosts_mode_blacklist">Blacklist</string>
+    <string name="hosts_mode_whitelist">Whitelist</string>
+    <string name="reset_settings_confirm">Reset all settings to their defaults?</string>
+    <string name="documentation">Documentation</string>
 </resources>

@@ -1,0 +1,26 @@
+[versions]
+agp = "9.4.0"
+kotlin = "2.3.0"
+# Compose "alpha" BOM keeps ui/foundation/animation/runtime in a coherent set.
+composeBom = "2026.09.00"
+# Pinned on purpose: Material 3 Expressive APIs still move between alphas.
+material3 = "1.5.0-alpha29"
+activityCompose = "1.13.0"
+coreKtx = "1.17.0"
+lifecycle = "2.10.0"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-service = { module = "androidx.lifecycle:lifecycle-service", version.ref = "lifecycle" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom-alpha", version.ref = "composeBom" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+androidx-compose-foundation = { module = "androidx.compose.foundation:foundation" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+androidx-compose-material-icons-core = { module = "androidx.compose.material:material-icons-core" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+# With AGP 9 Kotlin support is built in; only the Compose compiler plugin is applied.
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

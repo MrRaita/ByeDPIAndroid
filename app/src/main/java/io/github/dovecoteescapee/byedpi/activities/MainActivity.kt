@@ -1,37 +1,44 @@
 package io.github.dovecoteescapee.byedpi.activities
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import io.github.dovecoteescapee.byedpi.R
 import io.github.dovecoteescapee.byedpi.data.*
-import io.github.dovecoteescapee.byedpi.fragments.MainSettingsFragment
-import io.github.dovecoteescapee.byedpi.databinding.ActivityMainBinding
 import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
+import io.github.dovecoteescapee.byedpi.ui.ByeDpiApp
+import io.github.dovecoteescapee.byedpi.ui.ByeDpiTheme
+import io.github.dovecoteescapee.byedpi.ui.isDarkFor
+import io.github.dovecoteescapee.byedpi.ui.rememberPrefState
 import io.github.dovecoteescapee.byedpi.utility.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 
-class MainActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityMainBinding
-
+class MainActivity : ComponentActivity() {
     companion object {
         private val TAG: String = MainActivity::class.java.simpleName
 
@@ -45,7 +52,16 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "Failed to collect logs", e)
                 null
             }
+
+        private val LightScrim = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+        private val DarkScrim = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
     }
+
+    // Observable by Compose: the service layer only exposes a plain global (`appStatus`).
+    private var currentStatus by mutableStateOf(appStatus)
+
+    // True between pressing the button and the service reporting back.
+    private var pending by mutableStateOf(false)
 
     private val vpnRegister =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -63,19 +79,21 @@ class MainActivity : AppCompatActivity() {
                 val logs = collectLogs()
 
                 if (logs == null) {
-                    Toast.makeText(
-                        this@MainActivity,
-                        R.string.logs_failed,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            this@MainActivity,
+                            R.string.logs_failed,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 } else {
                     val uri = it.data?.data ?: run {
                         Log.e(TAG, "No data in result")
                         return@launch
                     }
-                    contentResolver.openOutputStream(uri)?.use {
+                    contentResolver.openOutputStream(uri)?.use { stream ->
                         try {
-                            it.write(logs.toByteArray())
+                            stream.write(logs.toByteArray())
                         } catch (e: IOException) {
                             Log.e(TAG, "Failed to save logs", e)
                         }
@@ -121,35 +139,45 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
 
         val intentFilter = IntentFilter().apply {
             addAction(STARTED_BROADCAST)
             addAction(STOPPED_BROADCAST)
             addAction(FAILED_BROADCAST)
         }
+        ContextCompat.registerReceiver(
+            this,
+            receiver,
+            intentFilter,
+            ContextCompat.RECEIVER_EXPORTED,
+        )
 
-        @SuppressLint("UnspecifiedRegisterReceiverFlag")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, intentFilter, RECEIVER_EXPORTED)
-        } else {
-            registerReceiver(receiver, intentFilter)
-        }
+        setContent {
+            val prefs = rememberPrefState(remember { getPreferences() })
+            val dark = isDarkFor(prefs.string("app_theme", "system"))
 
-        binding.statusButton.setOnClickListener {
-            val (status, _) = appStatus
-            when (status) {
-                AppStatus.Halted -> start()
-                AppStatus.Running -> stop()
+            // Keep status/navigation bar icon colors in sync with the in-app theme choice.
+            DisposableEffect(dark) {
+                this@MainActivity.enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(LightScrim, DarkScrim) { dark },
+                )
+                onDispose {}
+            }
+
+            ByeDpiTheme(darkTheme = dark) {
+                ByeDpiApp(
+                    status = currentStatus.first,
+                    runningMode = currentStatus.second,
+                    pending = pending,
+                    onToggle = ::toggle,
+                    onSaveLogs = ::saveLogs,
+                    onPendingTimeout = { pending = false },
+                )
             }
         }
-
-        val theme = getPreferences()
-            .getString("app_theme", null)
-        MainSettingsFragment.setTheme(theme ?: "system")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
@@ -171,40 +199,24 @@ class MainActivity : AppCompatActivity() {
         unregisterReceiver(receiver)
     }
 
-    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
+    private fun toggle() {
+        val (status, _) = appStatus
+        pending = true
+        when (status) {
+            AppStatus.Halted -> start()
+            AppStatus.Running -> stop()
+        }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val (status, _) = appStatus
-
-        return when (item.itemId) {
-            R.id.action_settings -> {
-                if (status == AppStatus.Halted) {
-                    val intent = Intent(this, SettingsActivity::class.java)
-                    startActivity(intent)
-                } else {
-                    Toast.makeText(this, R.string.settings_unavailable, Toast.LENGTH_SHORT)
-                        .show()
-                }
-                true
+    private fun saveLogs() {
+        val intent =
+            Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TITLE, "byedpi.log")
             }
 
-            R.id.action_save_logs -> {
-                val intent =
-                    Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TITLE, "byedpi.log")
-                    }
-
-                logsRegister.launch(intent)
-                true
-            }
-
-            else -> super.onOptionsItemSelected(item)
-        }
+        logsRegister.launch(intent)
     }
 
     private fun start() {
@@ -228,44 +240,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateStatus() {
         val (status, mode) = appStatus
-
         Log.i(TAG, "Updating status: $status, $mode")
-
-        val preferences = getPreferences()
-        val proxyIp = preferences.getStringNotNull("byedpi_proxy_ip", "127.0.0.1")
-        val proxyPort = preferences.getStringNotNull("byedpi_proxy_port", "1080")
-        binding.proxyAddress.text = getString(R.string.proxy_address, proxyIp, proxyPort)
-
-        when (status) {
-            AppStatus.Halted -> {
-                when (preferences.mode()) {
-                    Mode.VPN -> {
-                        binding.statusText.setText(R.string.vpn_disconnected)
-                        binding.statusButton.setText(R.string.vpn_connect)
-                    }
-
-                    Mode.Proxy -> {
-                        binding.statusText.setText(R.string.proxy_down)
-                        binding.statusButton.setText(R.string.proxy_start)
-                    }
-                }
-                binding.statusButton.isEnabled = true
-            }
-
-            AppStatus.Running -> {
-                when (mode) {
-                    Mode.VPN -> {
-                        binding.statusText.setText(R.string.vpn_connected)
-                        binding.statusButton.setText(R.string.vpn_disconnect)
-                    }
-
-                    Mode.Proxy -> {
-                        binding.statusText.setText(R.string.proxy_up)
-                        binding.statusButton.setText(R.string.proxy_stop)
-                    }
-                }
-                binding.statusButton.isEnabled = true
-            }
-        }
+        currentStatus = status to mode
+        pending = false
     }
 }
