@@ -103,6 +103,13 @@ class QuickTileService : TileService() {
         setState(if (status == AppStatus.Halted) Tile.STATE_INACTIVE else Tile.STATE_ACTIVE)
     }
 
+    /** The user is not inside the app when using the tile, so greet them with a toast. */
+    private fun showStartedNote() {
+        val notes = resources.getStringArray(R.array.tile_started_notes)
+        if (notes.isEmpty()) return
+        Toast.makeText(this, notes.random(), Toast.LENGTH_LONG).show()
+    }
+
     private fun handleClick() {
         setState(Tile.STATE_ACTIVE)
         setState(Tile.STATE_UNAVAILABLE)
@@ -119,6 +126,7 @@ class QuickTileService : TileService() {
                 }
 
                 ServiceManager.start(this, mode)
+                showStartedNote()
             }
 
             AppStatus.Running -> ServiceManager.stop(this)

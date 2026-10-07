@@ -3,6 +3,7 @@
 package io.github.dovecoteescapee.byedpi.ui
 
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.size
@@ -22,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
@@ -67,11 +69,13 @@ fun <T> expressiveEffects(): FiniteAnimationSpec<T> = MaterialTheme.motionScheme
 
 /**
  * Circular connect/disconnect button. The shape morphs from a circle to a rounded square while pressed.
+ * [subtitle] is a small second line (the proxy address).
  * Fallback: drop the `shapes = ...` argument and add `shape = CircleShape`.
  */
 @Composable
 fun ExpressiveCircleButton(
     text: String,
+    subtitle: String?,
     containerColor: Color,
     contentColor: Color,
     onClick: () -> Unit,
@@ -92,24 +96,50 @@ fun ExpressiveCircleButton(
             disabledContainerColor = containerColor,
             disabledContentColor = contentColor,
         ),
-        contentPadding = PaddingValues(0.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp),
         modifier = modifier.size(size),
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center,
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = text,
+                style = if (text.length > 11) {
+                    MaterialTheme.typography.titleMedium
+                } else {
+                    MaterialTheme.typography.titleLarge
+                },
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = contentColor.copy(alpha = 0.78f),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
+        }
     }
 }
 
 /**
- * Wavy circular loading ring (indeterminate) that runs around its bounds.
- * Fallback: `CircularProgressIndicator(modifier = modifier, color = color)`.
+ * Wavy circular ring. With [progress] it fills clockwise from the top (determinate); without it, it runs
+ * around endlessly (indeterminate).
+ * Fallback: `CircularProgressIndicator` with the same arguments.
  */
 @Composable
-fun ExpressiveWavyRing(color: Color, modifier: Modifier = Modifier) {
-    CircularWavyProgressIndicator(modifier = modifier, color = color)
+fun ExpressiveWavyRing(
+    color: Color,
+    modifier: Modifier = Modifier,
+    progress: (() -> Float)? = null,
+) {
+    if (progress == null) {
+        CircularWavyProgressIndicator(modifier = modifier, color = color)
+    } else {
+        CircularWavyProgressIndicator(progress = progress, modifier = modifier, color = color)
+    }
 }
 
 /**

@@ -74,3 +74,16 @@ Runs on every push to `main`/`master`, on pull requests, on tags `v*`, and manua
   With a gray/monochrome wallpaper the system palette is gray by design; pick "ByeDPI blue" for a colorful look.
 - `ui/ConnectionHero.kt`: circular button, wavy loading ring, power-on wave, wobbling ambient ripples,
   reversed "power-off" collapse. All alpha-only calls stay in `ui/Expressive.kt`.
+
+## 1.3.0-m3e
+- Connection tab: status card removed; proxy address now sits inside the circle button, a "VPN · Connected" line
+  under it, a friendly note above (random per app launch, separate pools for connected / not connected;
+  Turkish in `values-tr`, English default).
+- Connect/disconnect choreography is decoupled from the real connect time (`ui/ConnectionFx.kt`): the wavy ring
+  fills from the top in one full lap (2.4 s), then the wave bursts out in sync; disconnect plays the reverse.
+- Settings > General: **Reduce animations** (also honored automatically when the system animation scale is 0),
+  **Colors** = System colors or a **Palette** (12 palettes, `ui/Palettes.kt`).
+- Configuration tab: UI / Code switcher at the top; the matching options are listed inline (no sub-screens).
+- Quick settings tile: shows a warm toast when it starts the VPN/proxy.
+- Palettes are generated as Material-style tonal palettes (tones 10-100 mapped to color roles) from one seed hue.
+  A free "pick any color" seed (HCT) is a candidate for the next version.

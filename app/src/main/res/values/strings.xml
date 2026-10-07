@@ -97,4 +97,41 @@
     <string name="color_dynamic">System colors (Material You)</string>
     <string name="color_brand">ByeDPI blue</string>
     <string name="settings_locked_banner">Disconnect to change these settings.</string>
+    <string name="connecting">Connecting…</string>
+    <string name="disconnecting">Disconnecting…</string>
+    <string name="config_mode_ui">UI</string>
+    <string name="config_mode_code">Code</string>
+    <string name="color_palette">Color palette</string>
+    <string name="palette_title">Palette</string>
+    <string name="reduce_motion">Reduce animations</string>
+    <string name="reduce_motion_summary">Calmer, shorter effects and transitions</string>
+
+    <!-- Short friendly lines shown above the connect button. A random one is picked on every app launch. -->
+    <string-array name="notes_idle">
+        <item>Tap to tear down the walls built around you 😌</item>
+        <item>The internet belongs to everyone. Let\'s get past the limits together 🚀</item>
+        <item>One tap and the closed doors swing open 🔓</item>
+        <item>Which door are we opening today? 🌍</item>
+        <item>Obstacles can\'t stop you, one tap is enough ✨</item>
+        <item>Ready when you are, let\'s roam freely 🧭</item>
+        <item>Whatever you\'re curious about is one tap away 🌐</item>
+        <item>The walls may be high, but your curiosity is higher 😉</item>
+    </string-array>
+    <string-array name="notes_connected">
+        <item>The walls are down, enjoy 🎉</item>
+        <item>Browse freely now 🌊</item>
+        <item>All good, wander wherever you like 😌</item>
+        <item>Keep exploring, you\'re all set 🧭</item>
+        <item>Obstacles are behind you, happy browsing ✨</item>
+        <item>Doors are open, happy discoveries 🌍</item>
+        <item>Quiet, quick and free 🕊️</item>
+        <item>Everything is running behind the scenes, just enjoy 😎</item>
+    </string-array>
+    <!-- Toast shown when the VPN/proxy is started from the quick settings tile. -->
+    <string-array name="tile_started_notes">
+        <item>Tearing down the walls… happy browsing 🌍</item>
+        <item>Connecting, the doors are opening 🔓</item>
+        <item>Getting ready, you\'ll be roaming freely in a moment ✨</item>
+        <item>One tap and you\'re on your way 🚀</item>
+    </string-array>
 </resources>

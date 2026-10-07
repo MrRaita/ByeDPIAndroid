@@ -4,9 +4,25 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -131,7 +147,8 @@ private fun PrefRow(
     // Expressive press feedback: the row rounds off its corners while pressed, springing back on release.
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val spring = expressiveFastSpatial<Dp>()
+    val spring: FiniteAnimationSpec<Dp> =
+        if (LocalReduceMotion.current) snap() else expressiveFastSpatial()
     val top by animateDpAsState(if (pressed) OuterRadius else shape.top, spring, label = "row-top")
     val bottom by animateDpAsState(if (pressed) OuterRadius else shape.bottom, spring, label = "row-bottom")
     val rowShape = RoundedCornerShape(
@@ -378,6 +395,171 @@ fun openUrl(): (String) -> Unit {
             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (_: ActivityNotFoundException) {
             // no browser installed
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Segmented switcher (connected button group look): the selected segment is filled and fully rounded
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+fun ModeSwitcher(
+    selectedIndex: Int,
+    labels: List<String>,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val enabled = LocalPrefsEnabled.current
+    val reduce = LocalReduceMotion.current
+    val shapeSpec: FiniteAnimationSpec<Dp> = if (reduce) snap() else expressiveSpatial()
+    val colorSpec: FiniteAnimationSpec<Color> = if (reduce) snap() else expressiveEffects()
+    val outer = 24.dp
+    val inner = 8.dp
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .alpha(if (enabled) 1f else 0.5f),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        labels.forEachIndexed { index, label ->
+            val selected = index == selectedIndex
+            val first = index == 0
+            val last = index == labels.lastIndex
+
+            val startRadius by animateDpAsState(
+                targetValue = if (selected || first) outer else inner,
+                animationSpec = shapeSpec,
+                label = "segment-start",
+            )
+            val endRadius by animateDpAsState(
+                targetValue = if (selected || last) outer else inner,
+                animationSpec = shapeSpec,
+                label = "segment-end",
+            )
+            val container by animateColorAsState(
+                targetValue = if (selected) colors.primary else colors.surfaceContainerHigh,
+                animationSpec = colorSpec,
+                label = "segment-container",
+            )
+            val content by animateColorAsState(
+                targetValue = if (selected) colors.onPrimary else colors.onSurfaceVariant,
+                animationSpec = colorSpec,
+                label = "segment-content",
+            )
+
+            Surface(
+                onClick = { onSelect(index) },
+                enabled = enabled,
+                shape = RoundedCornerShape(
+                    topStart = startRadius.coerceAtLeast(0.dp),
+                    bottomStart = startRadius.coerceAtLeast(0.dp),
+                    topEnd = endRadius.coerceAtLeast(0.dp),
+                    bottomEnd = endRadius.coerceAtLeast(0.dp),
+                ),
+                color = container,
+                contentColor = content,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                    Text(text = label, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Palette picker: a grid of color swatches
+// ---------------------------------------------------------------------------------------------
+
+@Composable
+fun PalettePref(
+    shape: ItemShape,
+    title: String,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(
+            topStart = shape.top,
+            topEnd = shape.top,
+            bottomEnd = shape.bottom,
+            bottomStart = shape.bottom,
+        ),
+        color = colors.surfaceContainer,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+        ) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge, color = colors.onSurface)
+            Spacer(Modifier.height(14.dp))
+            Palettes.all.chunked(6).forEach { rowItems ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    rowItems.forEach { palette ->
+                        PaletteSwatch(
+                            palette = palette,
+                            selected = palette.id == selectedId,
+                            onClick = { onSelect(palette.id) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaletteSwatch(palette: AppPalette, selected: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val enabled = LocalPrefsEnabled.current
+    val reduce = LocalReduceMotion.current
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.12f else 1f,
+        animationSpec = if (reduce) snap() else expressiveFastSpatial(),
+        label = "swatch-scale",
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(44.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .then(if (selected) Modifier.border(3.dp, colors.onSurface, CircleShape) else Modifier)
+            .padding(if (selected) 5.dp else 0.dp)
+            .clip(CircleShape)
+            .background(palette.swatch)
+            .semantics { contentDescription = palette.label }
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
+    ) {
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

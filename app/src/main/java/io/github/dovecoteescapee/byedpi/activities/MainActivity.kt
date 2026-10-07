@@ -10,6 +10,7 @@ import android.graphics.Color
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -17,6 +18,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +32,8 @@ import io.github.dovecoteescapee.byedpi.services.ServiceManager
 import io.github.dovecoteescapee.byedpi.services.appStatus
 import io.github.dovecoteescapee.byedpi.ui.ByeDpiApp
 import io.github.dovecoteescapee.byedpi.ui.ByeDpiTheme
+import io.github.dovecoteescapee.byedpi.ui.LocalReduceMotion
+import io.github.dovecoteescapee.byedpi.ui.Palettes
 import io.github.dovecoteescapee.byedpi.ui.isDarkFor
 import io.github.dovecoteescapee.byedpi.ui.rememberPrefState
 import io.github.dovecoteescapee.byedpi.utility.*
@@ -167,17 +171,28 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
 
-            val dynamicColor = prefs.string("app_color", "dynamic") == "dynamic"
+            // "brand" is the old name of the palette mode.
+            val colorMode = prefs.string("app_color", "dynamic")
+            val dynamicColor = colorMode == "dynamic"
+            val paletteId = prefs.string("app_palette", Palettes.DEFAULT_ID)
 
-            ByeDpiTheme(darkTheme = dark, dynamicColor = dynamicColor) {
-                ByeDpiApp(
-                    status = currentStatus.first,
-                    runningMode = currentStatus.second,
-                    pending = pending,
-                    onToggle = ::toggle,
-                    onSaveLogs = ::saveLogs,
-                    onPendingTimeout = { pending = false },
-                )
+            // Fewer animations: user setting, or the system animation scale is turned off.
+            val systemAnimationsOff = remember {
+                Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+            }
+            val reduceMotion = prefs.bool("reduce_motion", false) || systemAnimationsOff
+
+            ByeDpiTheme(darkTheme = dark, dynamicColor = dynamicColor, paletteId = paletteId) {
+                CompositionLocalProvider(LocalReduceMotion provides reduceMotion) {
+                    ByeDpiApp(
+                        status = currentStatus.first,
+                        runningMode = currentStatus.second,
+                        pending = pending,
+                        onToggle = ::toggle,
+                        onSaveLogs = ::saveLogs,
+                        onPendingTimeout = { pending = false },
+                    )
+                }
             }
         }
 

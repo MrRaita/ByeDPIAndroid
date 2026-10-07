@@ -4,25 +4,17 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.core.EaseOutCubic
-import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -42,89 +34,43 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sin
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-
-private enum class WaveMode { None, Out, In }
 
 private val ButtonSize = 168.dp
 private val RingSize = 204.dp
 
 /**
- * The connect / disconnect control.
+ * The connect / disconnect control. All choreography lives in [ConnectionFx]; this only draws it:
  *
- *  - idle: a muted circle with the label
- *  - pending: a wavy loading ring runs around the circle's outline
- *  - connected (transition): the ring hands over to a wave that sweeps from the button to the screen sides,
- *    the button pops and fills with the primary color
+ *  - idle: a muted circle with the label and the proxy address
+ *  - busy: a wavy ring around the circle's outline (fills from the top on connect, drains on disconnect)
  *  - connected: calm, irregular, wobbling ripples keep radiating from the button
- *  - disconnected (transition): the same wave in reverse - everything is sucked back into the button, the
- *    ripples collapse, the glow dies and the button "thunks" off like a power supply being cut
+ *  - transitions: a wave sweeps from the button to the screen sides (connect) or is sucked back in (disconnect)
  */
 @Composable
 fun ConnectionHero(
-    running: Boolean,
-    pending: Boolean,
-    label: String,
+    fx: ConnectionFx,
+    connectLabel: String,
+    disconnectLabel: String,
+    connectingLabel: String,
+    disconnectingLabel: String,
+    subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
+    val reduce = LocalReduceMotion.current
 
-    val energy = remember { Animatable(if (running) 1f else 0f) } // 0 = off, 1 = on
-    val wave = remember { Animatable(0f) }                         // progress of the one-shot wave
-    val pop = remember { Animatable(1f) }                          // button scale kick
-    var waveMode by remember { mutableStateOf(WaveMode.None) }
-    val firstRun = remember { mutableStateOf(true) }
-
-    LaunchedEffect(running) {
-        if (firstRun.value) {
-            // Already in the right state when the screen appears: no animation.
-            firstRun.value = false
-            return@LaunchedEffect
-        }
-        coroutineScope {
-            if (running) {
-                // POWER ON
-                waveMode = WaveMode.Out
-                launch {
-                    wave.snapTo(0f)
-                    wave.animateTo(1f, tween(1400, easing = LinearOutSlowInEasing))
-                    waveMode = WaveMode.None
-                }
-                launch {
-                    energy.animateTo(
-                        1f,
-                        spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessVeryLow),
-                    )
-                }
-                launch {
-                    pop.animateTo(1.12f, tween(130))
-                    pop.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = Spring.StiffnessMedium))
-                }
-            } else {
-                // POWER OFF
-                waveMode = WaveMode.In
-                launch {
-                    wave.snapTo(0f)
-                    wave.animateTo(1f, tween(950, easing = FastOutLinearInEasing))
-                    waveMode = WaveMode.None
-                }
-                launch { energy.animateTo(0f, tween(900, easing = FastOutLinearInEasing)) }
-                launch {
-                    delay(760)
-                    pop.animateTo(0.88f, tween(70))
-                    pop.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = Spring.StiffnessMedium))
-                }
-            }
-        }
-    }
-
-    val e = energy.value.coerceIn(0f, 1f)
+    val e = fx.energy.value.coerceIn(0f, 1f)
     val container = lerpColor(colors.surfaceContainerHighest, colors.primary, e)
     val content = lerpColor(colors.onSurface, colors.onPrimary, e)
-    val fxVisible = running || e > 0.001f || waveMode != WaveMode.None
+
+    val label = when (fx.phase) {
+        FxPhase.Connecting -> connectingLabel
+        FxPhase.Disconnecting -> disconnectingLabel
+        FxPhase.Idle -> if (fx.shown) disconnectLabel else connectLabel
+    }
+    val busy = fx.phase != FxPhase.Idle
+    val fxVisible = !reduce && (fx.shown || e > 0.001f || fx.waveMode != WaveMode.None)
 
     Box(
         modifier = modifier.clipToBounds(),
@@ -132,9 +78,9 @@ fun ConnectionHero(
     ) {
         if (fxVisible) {
             RippleCanvas(
-                energy = energy,
-                wave = wave,
-                waveMode = waveMode,
+                energy = fx.energy,
+                wave = fx.wave,
+                waveMode = fx.waveMode,
                 buttonRadius = ButtonSize / 2,
                 modifier = Modifier.matchParentSize(),
             )
@@ -143,22 +89,28 @@ fun ConnectionHero(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.graphicsLayer {
-                scaleX = pop.value
-                scaleY = pop.value
+                scaleX = fx.pop.value
+                scaleY = fx.pop.value
             },
         ) {
-            if (pending) {
-                ExpressiveWavyRing(
-                    color = if (running) colors.tertiary else colors.primary,
-                    modifier = Modifier.size(RingSize),
-                )
+            if (busy) {
+                if (fx.ringLooping || reduce) {
+                    ExpressiveWavyRing(color = colors.primary, modifier = Modifier.size(RingSize))
+                } else {
+                    ExpressiveWavyRing(
+                        color = colors.primary,
+                        modifier = Modifier.size(RingSize),
+                        progress = { fx.ring.value.coerceIn(0f, 1f) },
+                    )
+                }
             }
             ExpressiveCircleButton(
                 text = label,
+                subtitle = subtitle,
                 containerColor = container,
                 contentColor = content,
                 onClick = onClick,
-                enabled = !pending,
+                enabled = !busy,
                 size = ButtonSize,
             )
         }

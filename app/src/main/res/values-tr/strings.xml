@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bağlan düğmesinin üstündeki kısa samimi yazılar. Uygulama her açıldığında rastgele biri seçilir. -->
+    <string-array name="notes_idle">
+        <item>Etrafınıza örülen duvarları yıkmak için dokunun 😌</item>
+        <item>İnternet herkesindir. Hadi, sınırları birlikte aşalım 🚀</item>
+        <item>Tek dokunuş, kapalı kapılar aralanıyor 🔓</item>
+        <item>Bugün hangi kapıyı açıyoruz? 🌍</item>
+        <item>Engeller sizi durduramaz, bir dokunuş yeter ✨</item>
+        <item>Hazırsanız, özgürce gezinmeye başlayalım 🧭</item>
+        <item>Merak ettiğiniz her şey bir dokunuş uzakta 🌐</item>
+        <item>Duvarlar yüksek olabilir ama merakınız daha yüksek 😉</item>
+    </string-array>
+    <string-array name="notes_connected">
+        <item>Duvarlar yıkıldı, keyfini çıkarın 🎉</item>
+        <item>Şimdi özgürce gezinebilirsiniz 🌊</item>
+        <item>Her şey yolunda, rahatça dolaşın 😌</item>
+        <item>Hazırsınız, keşfetmeye devam edin 🧭</item>
+        <item>Engeller geride kaldı, iyi gezintiler ✨</item>
+        <item>Kapılar açık, keyifli keşifler 🌍</item>
+        <item>Sessiz, hızlı ve özgür 🕊️</item>
+        <item>Perde arkasında her şey yolunda, siz keyfinize bakın 😎</item>
+    </string-array>
+    <!-- Hızlı ayarlar kutucuğundan başlatılınca gösterilen bildirim. -->
+    <string-array name="tile_started_notes">
+        <item>Duvarlar yıkılıyor… iyi gezintiler 🌍</item>
+        <item>Bağlantı kuruluyor, kapılar aralanıyor 🔓</item>
+        <item>Hazırlanıyor… birazdan özgürce gezinebilirsiniz ✨</item>
+        <item>Tek dokunuşla yoldasınız 🚀</item>
+    </string-array>
+</resources>

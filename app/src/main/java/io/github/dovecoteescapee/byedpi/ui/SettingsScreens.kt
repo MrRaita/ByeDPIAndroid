@@ -1,5 +1,11 @@
 package io.github.dovecoteescapee.byedpi.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -124,44 +130,43 @@ private fun rememberPrefs(): PrefState {
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun ConfigurationScreen(
-    running: Boolean,
-    onOpenUiSettings: () -> Unit,
-    onOpenCmdSettings: () -> Unit,
-) {
+fun ConfigurationScreen(running: Boolean) {
     val prefs = rememberPrefs()
+    val reduce = LocalReduceMotion.current
     val cmdEnabled = prefs.bool("byedpi_enable_cmd_settings", false)
+
+    val effects = expressiveEffects<Float>()
+    val spatial = expressiveSpatial<androidx.compose.ui.unit.IntOffset>()
 
     SettingsScaffold(
         title = stringResource(R.string.tab_configuration),
         onBack = null,
         locked = running,
     ) {
-        PrefGroup(title = stringResource(R.string.byedpi_category)) {
-            item { shape ->
-                SwitchPref(
-                    shape = shape,
-                    title = stringResource(R.string.use_command_line_settings),
-                    checked = cmdEnabled,
-                    onChange = { prefs.putBool("byedpi_enable_cmd_settings", it) },
-                )
-            }
-            item { shape ->
-                ActionPref(
-                    shape = shape,
-                    title = stringResource(R.string.ui_editor),
-                    enabled = !cmdEnabled,
-                    onClick = onOpenUiSettings,
-                )
-            }
-            item { shape ->
-                ActionPref(
-                    shape = shape,
-                    title = stringResource(R.string.command_line_editor),
-                    enabled = cmdEnabled,
-                    onClick = onOpenCmdSettings,
-                )
-            }
+        // Choosing a side both selects which configuration ByeDPI uses and lists its options below.
+        ModeSwitcher(
+            selectedIndex = if (cmdEnabled) 1 else 0,
+            labels = listOf(
+                stringResource(R.string.config_mode_ui),
+                stringResource(R.string.config_mode_code),
+            ),
+            onSelect = { prefs.putBool("byedpi_enable_cmd_settings", it == 1) },
+        )
+
+        AnimatedContent(
+            targetState = cmdEnabled,
+            transitionSpec = {
+                if (reduce) {
+                    fadeIn(effects) togetherWith fadeOut(effects)
+                } else {
+                    val sign = if (targetState) 1 else -1
+                    (slideInHorizontally(spatial) { sign * it / 6 } + fadeIn(effects)) togetherWith
+                        (slideOutHorizontally(spatial) { -sign * it / 6 } + fadeOut(effects))
+                }
+            },
+            label = "config-content",
+        ) { cmd ->
+            if (cmd) CmdEditorContent() else UiEditorContent()
         }
     }
 }
@@ -183,10 +188,16 @@ fun SettingsScreen(running: Boolean) {
         "light" to stringResource(R.string.theme_light),
         "dark" to stringResource(R.string.theme_dark),
     )
+    val dynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorEntries = listOf(
         "dynamic" to stringResource(R.string.color_dynamic),
-        "brand" to stringResource(R.string.color_brand),
+        "palette" to stringResource(R.string.color_palette),
     )
+    // "brand" was the previous name of the palette mode.
+    val colorMode = when {
+        !dynamicAvailable -> "palette"
+        else -> prefs.string("app_color", "dynamic").let { if (it == "brand") "palette" else it }
+    }
     val modeEntries = listOf(
         "vpn" to stringResource(R.string.mode_vpn),
         "proxy" to stringResource(R.string.mode_proxy),
@@ -210,17 +221,40 @@ fun SettingsScreen(running: Boolean) {
                     )
                 }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (dynamicAvailable) {
                 item { shape ->
                     CompositionLocalProvider(LocalPrefsEnabled provides true) {
                         ChoicePref(
                             shape = shape,
                             title = stringResource(R.string.color_source),
-                            value = prefs.string("app_color", "dynamic"),
+                            value = colorMode,
                             entries = colorEntries,
                             onSelect = { prefs.putString("app_color", it) },
                         )
                     }
+                }
+            }
+            if (colorMode == "palette") {
+                item { shape ->
+                    CompositionLocalProvider(LocalPrefsEnabled provides true) {
+                        PalettePref(
+                            shape = shape,
+                            title = stringResource(R.string.palette_title),
+                            selectedId = prefs.string("app_palette", Palettes.DEFAULT_ID),
+                            onSelect = { prefs.putString("app_palette", it) },
+                        )
+                    }
+                }
+            }
+            item { shape ->
+                CompositionLocalProvider(LocalPrefsEnabled provides true) {
+                    SwitchPref(
+                        shape = shape,
+                        title = stringResource(R.string.reduce_motion),
+                        summary = stringResource(R.string.reduce_motion_summary),
+                        checked = prefs.bool("reduce_motion", false),
+                        onChange = { prefs.putBool("reduce_motion", it) },
+                    )
                 }
             }
             item { shape ->
@@ -309,7 +343,7 @@ fun SettingsScreen(running: Boolean) {
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun UiSettingsScreen(running: Boolean, onBack: () -> Unit) {
+private fun UiEditorContent() {
     val prefs = rememberPrefs()
     val openUrl = openUrl()
     val docsUrl = stringResource(R.string.byedpi_docs)
@@ -345,12 +379,7 @@ fun UiSettingsScreen(running: Boolean, onBack: () -> Unit) {
         "disoob" to stringResource(R.string.desync_method_disoob),
     )
 
-    SettingsScaffold(
-        title = stringResource(R.string.ui_editor),
-        onBack = onBack,
-        locked = running,
-        navInset = true,
-    ) {
+    Column {
         PrefGroup {
             item { shape ->
                 ActionPref(
@@ -653,17 +682,12 @@ fun UiSettingsScreen(running: Boolean, onBack: () -> Unit) {
 // ---------------------------------------------------------------------------------------------
 
 @Composable
-fun CmdSettingsScreen(running: Boolean, onBack: () -> Unit) {
+private fun CmdEditorContent() {
     val prefs = rememberPrefs()
     val openUrl = openUrl()
     val docsUrl = stringResource(R.string.byedpi_docs)
 
-    SettingsScaffold(
-        title = stringResource(R.string.command_line_editor),
-        onBack = onBack,
-        locked = running,
-        navInset = true,
-    ) {
+    Column {
         PrefGroup {
             item { shape ->
                 ActionPref(

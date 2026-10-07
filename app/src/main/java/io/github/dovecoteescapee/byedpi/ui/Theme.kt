@@ -8,12 +8,13 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 // Static palette (brand blue, derived from the old #5976DF) used below Android 12,
 // where wallpaper-based dynamic color is not available.
-private val LightColors: ColorScheme = lightColorScheme(
+internal val ByeDpiLightColors: ColorScheme = lightColorScheme(
     primary = Color(0xFF4259C7),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFDDE1FF),
@@ -50,7 +51,7 @@ private val LightColors: ColorScheme = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE4E1E9),
 )
 
-private val DarkColors: ColorScheme = darkColorScheme(
+internal val ByeDpiDarkColors: ColorScheme = darkColorScheme(
     primary = Color(0xFFB8C3FF),
     onPrimary = Color(0xFF002688),
     primaryContainer = Color(0xFF2640AE),
@@ -97,17 +98,21 @@ fun isDarkFor(themePref: String): Boolean = when (themePref) {
 
 /**
  * @param dynamicColor use wallpaper-based colors (Android 12+). When false, or on older Android,
- * the static ByeDPI-blue palette is used.
+ * the palette identified by [paletteId] is used (see [Palettes]).
  */
 @Composable
-fun ByeDpiTheme(darkTheme: Boolean, dynamicColor: Boolean, content: @Composable () -> Unit) {
+fun ByeDpiTheme(
+    darkTheme: Boolean,
+    dynamicColor: Boolean,
+    paletteId: String,
+    content: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     val canUseDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
         canUseDynamic && darkTheme -> dynamicDarkColorScheme(context)
         canUseDynamic -> dynamicLightColorScheme(context)
-        darkTheme -> DarkColors
-        else -> LightColors
+        else -> remember(paletteId, darkTheme) { Palettes.scheme(Palettes.find(paletteId), darkTheme) }
     }
     ExpressiveTheme(colorScheme = colorScheme, content = content)
 }

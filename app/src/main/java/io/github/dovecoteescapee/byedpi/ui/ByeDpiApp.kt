@@ -2,13 +2,10 @@ package io.github.dovecoteescapee.byedpi.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -38,24 +35,10 @@ import io.github.dovecoteescapee.byedpi.data.AppStatus
 import io.github.dovecoteescapee.byedpi.data.Mode
 import kotlinx.coroutines.delay
 
-private enum class Tab(val icon: ImageVector) {
-    Connection(Icons.Filled.Lock),
-    Configuration(Icons.Filled.Build),
-    Settings(Icons.Filled.Settings),
-}
-
-private enum class Dest(val order: Int, val tab: Tab, val topLevel: Boolean) {
-    Connection(0, Tab.Connection, true),
-    Configuration(1, Tab.Configuration, true),
-    Settings(2, Tab.Settings, true),
-    UiEditor(3, Tab.Configuration, false),
-    CmdEditor(3, Tab.Configuration, false),
-}
-
-private fun Tab.destination(): Dest = when (this) {
-    Tab.Connection -> Dest.Connection
-    Tab.Configuration -> Dest.Configuration
-    Tab.Settings -> Dest.Settings
+private enum class Tab(val icon: ImageVector, val label: Int) {
+    Connection(Icons.Filled.Lock, R.string.tab_connection),
+    Configuration(Icons.Filled.Build, R.string.tab_configuration),
+    Settings(Icons.Filled.Settings, R.string.title_settings),
 }
 
 @Composable
@@ -67,10 +50,11 @@ fun ByeDpiApp(
     onSaveLogs: () -> Unit,
     onPendingTimeout: () -> Unit,
 ) {
-    var dest by rememberSaveable { mutableStateOf(Dest.Connection) }
+    var tab by rememberSaveable { mutableStateOf(Tab.Connection) }
     val running = status == AppStatus.Running
+    val reduce = LocalReduceMotion.current
 
-    // Safety net: never leave the loading ring up forever if a broadcast is missed.
+    // Safety net: never leave the busy ring up forever if a broadcast is missed.
     LaunchedEffect(pending) {
         if (pending) {
             delay(10_000)
@@ -78,60 +62,43 @@ fun ByeDpiApp(
         }
     }
 
-    BackHandler(enabled = dest != Dest.Connection) {
-        dest = when (dest) {
-            Dest.UiEditor, Dest.CmdEditor -> Dest.Configuration
-            else -> Dest.Connection
-        }
-    }
+    BackHandler(enabled = tab != Tab.Connection) { tab = Tab.Connection }
 
-    // Springy, expressive screen transitions (specs come from the theme's motion scheme).
+    // Springy, expressive tab transitions (specs come from the theme's motion scheme).
     val spatial = expressiveSpatial<IntOffset>()
     val effects = expressiveEffects<Float>()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp),
         bottomBar = {
-            AnimatedVisibility(
-                visible = dest.topLevel,
-                enter = slideInVertically { it },
-                exit = slideOutVertically { it },
-            ) {
-                NavigationBar {
-                    Tab.entries.forEach { tab ->
-                        NavigationBarItem(
-                            selected = dest.tab == tab,
-                            onClick = { dest = tab.destination() },
-                            icon = { Icon(imageVector = tab.icon, contentDescription = null) },
-                            label = {
-                                Text(
-                                    stringResource(
-                                        when (tab) {
-                                            Tab.Connection -> R.string.tab_connection
-                                            Tab.Configuration -> R.string.tab_configuration
-                                            Tab.Settings -> R.string.title_settings
-                                        }
-                                    )
-                                )
-                            },
-                        )
-                    }
+            NavigationBar {
+                Tab.entries.forEach { entry ->
+                    NavigationBarItem(
+                        selected = tab == entry,
+                        onClick = { tab = entry },
+                        icon = { Icon(imageVector = entry.icon, contentDescription = null) },
+                        label = { Text(stringResource(entry.label)) },
+                    )
                 }
             }
         },
     ) { inner ->
         Box(modifier = Modifier.padding(inner)) {
             AnimatedContent(
-                targetState = dest,
+                targetState = tab,
                 transitionSpec = {
-                    val sign = if (targetState.order >= initialState.order) 1 else -1
-                    (slideInHorizontally(spatial) { fullWidth -> sign * fullWidth / 5 } + fadeIn(effects)) togetherWith
-                        (slideOutHorizontally(spatial) { fullWidth -> -sign * fullWidth / 5 } + fadeOut(effects))
+                    if (reduce) {
+                        fadeIn(effects) togetherWith fadeOut(effects)
+                    } else {
+                        val sign = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                        (slideInHorizontally(spatial) { fullWidth -> sign * fullWidth / 5 } + fadeIn(effects)) togetherWith
+                            (slideOutHorizontally(spatial) { fullWidth -> -sign * fullWidth / 5 } + fadeOut(effects))
+                    }
                 },
-                label = "destination",
+                label = "tab",
             ) { target ->
                 when (target) {
-                    Dest.Connection -> ConnectionScreen(
+                    Tab.Connection -> ConnectionScreen(
                         status = status,
                         runningMode = runningMode,
                         pending = pending,
@@ -139,23 +106,8 @@ fun ByeDpiApp(
                         onSaveLogs = onSaveLogs,
                     )
 
-                    Dest.Configuration -> ConfigurationScreen(
-                        running = running,
-                        onOpenUiSettings = { dest = Dest.UiEditor },
-                        onOpenCmdSettings = { dest = Dest.CmdEditor },
-                    )
-
-                    Dest.Settings -> SettingsScreen(running = running)
-
-                    Dest.UiEditor -> UiSettingsScreen(
-                        running = running,
-                        onBack = { dest = Dest.Configuration },
-                    )
-
-                    Dest.CmdEditor -> CmdSettingsScreen(
-                        running = running,
-                        onBack = { dest = Dest.Configuration },
-                    )
+                    Tab.Configuration -> ConfigurationScreen(running = running)
+                    Tab.Settings -> SettingsScreen(running = running)
                 }
             }
         }
